@@ -3,4 +3,4 @@
 ## 📚 Material de Apoio
 | Aula | Link |
 | :--- | :--- |
-| Aula 03 - Introdução ao Python | |
+| Aula 03 - Introdução ao Python |<a href="https://colab.research.google.com/github/Assaoka/Inteligencia_Artificial--UNIFESP_2026/blob/main/Aulas/Aula%2003%20-%20Introdu%C3%A7%C3%A3o%20ao%20Python.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
