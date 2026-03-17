@@ -1,2 +1,6 @@
-# Aula_IA_-_C_para_Python
+# Inteligência Artificial - UNIFESP 2026
 
+## 📚 Material de Apoio
+| Aula | Link |
+| :--- | :--- |
+| Aula 03 - Introdução ao Python | |
