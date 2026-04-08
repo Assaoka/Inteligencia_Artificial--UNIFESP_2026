@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 from Wumpus import regras
-from Wumpus import agente_llm
 
 st.set_page_config(page_title="Mundo de Wumpus", layout="wide", page_icon="👹")
 
@@ -12,7 +11,7 @@ IMG_VISITADO = os.path.join(IMG_DIR, "visitado.png")
 IMG_SEGREDO = os.path.join(IMG_DIR, "segredo.png")
 
 # ---------- Sidebar – parâmetros de jogo ----------
-with st.sidebar.expander("⚙️ Configuração do Jogo", expanded=True):
+with st.sidebar.expander("⚙️ Configuração do Jogo", expanded=False):
     st.number_input("Número de Quadrantes (N x N)",
                     min_value=3, max_value=10, value=3, step=1,
                     key="num_quadrantes")
@@ -33,23 +32,11 @@ with st.sidebar.expander("⚙️ Configuração do Jogo", expanded=True):
         st.error("A soma de Ouro, Buracos e o Wumpus não pode exceder o número de quadrantes.")
         st.stop()
 
-# ---------- Sidebar – Agente LLM ----------
-with st.sidebar.expander("🤖 Agente de IA (LLM)", expanded=True):
-    api_key = st.text_input("Groq API Key", type="password")
-    modelo = st.selectbox("Modelo", [
-        "qwen/qwen3-32b", "llama-3.1-8b-instant"
-        #, "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b"
-    ], accept_new_options=True)
-    comando = st.text_area("Missão para o Agente", value="Encontre o ouro e saia da caverna em segurança.", key="missao_llm")
-    
-    if st.button("🚀 Iniciar Agente LLM", use_container_width=True):
-        agente_llm.executar_agente_llm(comando, api_key, modelo)
-
 # ---------- Reinício ou primeira execução ----------
 if (
+    st.sidebar.button("🔄 Reiniciar Jogo", use_container_width=True) or
     "tabuleiro" not in st.session_state or
-    st.session_state.num_quadrantes != len(st.session_state.tabuleiro) or
-    st.sidebar.button("🔄 Reiniciar Jogo", use_container_width=True)    
+    st.session_state.num_quadrantes != len(st.session_state.tabuleiro)
 ):
     regras.criar_tabuleiro()
     st.session_state.atual = (0, 0)
@@ -58,44 +45,81 @@ if (
     st.session_state.ouro_coletado = False
     st.session_state.wumpus_vivo = True
     st.session_state.pontuacao = 0
+    st.session_state.atirar = False
     # revela casa inicial
     regras.sentidos(0, 0)
 
-# ---------- Renderização do tabuleiro ----------
+# ---------- Renderização da Interface ----------
 st.title("🏹 Mundo de Wumpus")
 
-N = st.session_state.num_quadrantes
-cols = st.columns(N + 1)  # última coluna = painel de ações
+# Contêiner vazio que será preenchido pela função de renderização
+interface_jogo = st.empty()
 
-for i in range(N):
-    for j in range(N):
-        cell = st.session_state.tabuleiro[i][j]
-        # imagem
-        if (i, j) == st.session_state.atual:
-            cols[j].image(IMG_ATUAL, use_container_width=True)
-        elif cell[regras.VISITADO]:
-            cols[j].image(IMG_VISITADO, use_container_width=True)
-        else:
-            cols[j].image(IMG_SEGREDO, use_container_width=True)
+def renderizar_jogo():
+    """Função que desenha o tabuleiro e os controles na tela."""
+    with interface_jogo.container():
+        N = st.session_state.num_quadrantes
+        cols = st.columns(N + 1)  # última coluna = painel de ações
 
-# ---------- Painel de ações (última coluna) ----------
-with cols[-1]:
-    st.subheader("Controles")
-    st.checkbox("Atirar", value=False, key="atirar")
+        # Desenha o tabuleiro
+        for i in range(N):
+            for j in range(N):
+                cell = st.session_state.tabuleiro[i][j]
+                if (i, j) == st.session_state.atual:
+                    cols[j].image(IMG_ATUAL, use_container_width=True)
+                elif cell[regras.VISITADO]:
+                    cols[j].image(IMG_VISITADO, use_container_width=True)
+                else:
+                    cols[j].image(IMG_SEGREDO, use_container_width=True)
 
-    st.button("Mover ↑", on_click=regras.mover_cima, use_container_width=True)
-    st.button("Mover ↓", on_click=regras.mover_baixo, use_container_width=True)
-    st.button("Mover ←", on_click=regras.mover_esquerda, use_container_width=True)
-    st.button("Mover →", on_click=regras.mover_direita, use_container_width=True)
+        # Painel de ações (última coluna)
+        with cols[-1]:
+            st.subheader("Controles")
+            
+            st.checkbox("Atirar", value=st.session_state.atirar, key="atirar_btn")
+            # Atualiza o estado real com base no widget (gambiarra necessária para sync)
+            st.session_state.atirar = st.session_state.atirar_btn
 
-    st.divider()
-    st.button("🏆 Pegar Ouro", on_click=regras.pegar_ouro, use_container_width=True)
-    st.button("🧗 Escalar (sair)", on_click=regras.escalar_caverna, use_container_width=True)
+            if st.button("Mover ↑", key="up", use_container_width=True):
+                regras.mover_cima()
+                st.rerun()
+            if st.button("Mover ↓", key="down", use_container_width=True):
+                regras.mover_baixo()
+                st.rerun()
+            if st.button("Mover ←", key="left", use_container_width=True):
+                regras.mover_esquerda()
+                st.rerun()
+            if st.button("Mover →", key="right", use_container_width=True):
+                regras.mover_direita()
+                st.rerun()
 
-    st.divider()
-    st.markdown(f"**Flechas restantes:** {st.session_state.flechas}")
-    st.markdown(f"**Pontuação:** {st.session_state.pontuacao}")
+            st.divider()
+            if st.button("🏆 Pegar Ouro", key="gold", use_container_width=True):
+                regras.pegar_ouro()
+                st.rerun()
+            if st.button("🧗 Escalar (sair)", key="exit", use_container_width=True):
+                regras.escalar_caverna()
+                st.rerun()
 
-# ---------- Painel de feedback / sentidos ----------
-with st.sidebar.expander("🗣️ Sentidos do Agente", expanded=True):
-    st.markdown(st.session_state.sentidos) 
+            st.divider()
+            st.markdown(f"**Flechas restantes:** {st.session_state.flechas}")
+            st.markdown(f"**Pontuação:** {st.session_state.pontuacao}")
+
+        # ---------- Painel de feedback / sentidos ----------
+        with st.sidebar.expander("🗣️ Sentidos do Agente", expanded=True):
+            st.markdown(st.session_state.sentidos) 
+
+# Renderiza a interface pela primeira vez (ou após ações manuais)
+renderizar_jogo()
+
+# ---------- Sidebar – Agente LLM ----------
+with st.sidebar.expander("🤖 Agente de IA (LLM)", expanded=True):
+    from Wumpus import agente_llm
+    api_key_input = st.text_input("Groq API Key", type="password")
+    modelo = st.selectbox("Modelo", [
+        "qwen/qwen3-32b", "llama-3.1-8b-instant"
+    ], accept_new_options=True)
+    comando = st.text_area("Missão para o Agente", value="Investigue a posição [2, 2] e saia da caverna. Entregue um relatório do que encontrou.", key="missao_llm")
+    
+    if st.button("🚀 Iniciar Agente LLM", use_container_width=True):
+        agente_llm.executar_agente_llm(comando, api_key_input, modelo, renderizar_jogo)

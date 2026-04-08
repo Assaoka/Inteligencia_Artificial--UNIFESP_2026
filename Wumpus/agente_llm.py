@@ -10,8 +10,8 @@ REGRAS DO MUNDO DE WUMPUS:
 1. Você começa na posição {st.session_state.atual} em um tabuleiro de tamanho {st.session_state.num_quadrantes}x{st.session_state.num_quadrantes}.
 2. Seu objetivo é concluir uma missão que será passada para você.
 3. Você só pode se mover para casas adjacentes (cima, baixo, esquerda ou direita).
-4. Se você sentir 'brisa', há um buraco em uma casa adjacente. Existem {st.session_state.num_buracos} buracos no total.
-5. Se você sentir 'fedor', o Wumpus está em uma casa adjacente. Se você pisar na mesma casa que o Wumpus vivo, você morre.
+4. Se você sentir 'brisa', há um buraco em uma das casas adjacentes. Existem {st.session_state.num_buracos} buracos no total. Se você pisar em uma casa com um buraco, você morre.
+5. Se você sentir 'fedor', o Wumpus está em uma das casas adjacentes. Se você pisar na mesma casa que o Wumpus vivo, você morre. O 'fedor' permanece na casa mesmo após o Wumpus morrer.
 6. Você tem {st.session_state.flechas} flechas no total. Se você atirar uma flecha e acertar o Wumpus, ele morre. Se você atirar uma flecha e errar o Wumpus, a flecha é perdida.
 7. Existem {st.session_state.num_ouro} ouros no total. Você só descobre que tem ouro quando entra em uma casa que tem ouro.""" + """
 
@@ -63,7 +63,12 @@ def call_tool(action_name, action_input):
     else:
         return f"Erro: Ferramenta {action_name} não existe."
 
-def executar_agente_llm(prompt_usuario, api_key, model_name="qwen-qwq-32b"):
+def executar_agente_llm(
+    prompt_usuario: str, 
+    api_key: str, 
+    model_name: str,
+    renderizar_jogo: callable
+) -> None:
     if not api_key:
         st.error("Por favor, insira a GROQ API KEY na barra lateral.")
         return
@@ -82,8 +87,7 @@ def executar_agente_llm(prompt_usuario, api_key, model_name="qwen-qwq-32b"):
 
     MAX_ITERACOES = 2 * (st.session_state.num_quadrantes ** 2)
     
-    container = st.container()
-    container.markdown("### 🤖 Log do Agente LLM")
+    container = st.expander("🤖 Log do Agente LLM", expanded=True)
 
     for i in range(MAX_ITERACOES):
         # Chama a LLM parando antes da observação para não alucinar
@@ -111,18 +115,18 @@ def executar_agente_llm(prompt_usuario, api_key, model_name="qwen-qwq-32b"):
                 # Atualiza o histórico
                 messages.append({"role": "assistant", "content": texto_gerado + "\n" + observation_text})
                 
-                # Pequena pausa para animação visual no Streamlit
-                time.sleep(0.5)
-                # st.rerun() # Removido para não quebrar o loop. O Streamlit atualizará ao final ou podemos usar st.empty()
+                # --- ATUALIZAÇÃO VISUAL ---
+                renderizar_jogo()
                 
                 # Se o estado indicar morte ou fim de jogo, para
                 if "MORREU" in resultado or "Parabéns" in resultado:
                     # Envia uma última mensagem para a LLM saber que acabou e dar o Final Answer
-                    messages.append({"role": "user", "content": "O jogo terminou baseado na sua última ação. Dê sua resposta final."})
+                    messages.append({"role": "user", "content": "O jogo terminou baseado na sua última ação. Logo, você não pode realizar mais nenhuma ação. Dê sua resposta final ao usuário."})
                     
             except Exception as e:
                 error_msg = f"Erro ao processar ação: {str(e)}"
-                container.error(error_msg)
+                if not "There are multiple elements with" in error_msg:
+                    container.error(error_msg)
                 messages.append({"role": "assistant", "content": f"Observation:\n{error_msg}"})
         else:
             container.warning("O modelo não seguiu o formato Action. Encerrando.")
